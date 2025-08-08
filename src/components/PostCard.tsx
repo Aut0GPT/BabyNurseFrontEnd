@@ -44,9 +44,18 @@ export default function PostCard({ post, onPostUpdate }: PostCardProps) {
         console.log('✅ Post publicado com sucesso:', result.data.facebook_url);
         onPostUpdate(); // Refresh posts
       } else {
-        // Show error feedback
+        // Show error feedback with user-friendly message
         console.error('❌ Erro ao publicar:', result.error);
-        alert(`Erro ao publicar post: ${result.error}`);
+        
+        let userMessage = result.error;
+        if (result.error?.includes('não configurado')) {
+          userMessage = 'Facebook API não está configurado. Contate o administrador.';
+        } else if (result.error?.includes('not configured')) {
+          userMessage = 'Facebook API não está configurado. Contate o administrador.';
+        }
+        
+        alert(`Erro ao publicar post: ${userMessage}`);
+        onPostUpdate(); // Refresh to show failed status
       }
     } catch (error) {
       console.error('❌ Erro na requisição:', error);

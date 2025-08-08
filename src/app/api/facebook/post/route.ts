@@ -15,16 +15,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate environment variables
-    const facebookAccessToken = process.env.FACEBOOK_ACCESS_TOKEN;
-    if (!facebookAccessToken) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        error: 'Facebook access token not configured'
-      }, { status: 500 });
-    }
-    
-    // Get post from database
+    // Get post from database first
     const post = await AdminPostsService.getPostById(postId);
     
     if (!post) {
@@ -32,6 +23,25 @@ export async function POST(request: NextRequest) {
         success: false,
         error: 'Post not found'
       }, { status: 404 });
+    }
+
+    // Check if Facebook API is configured
+    const facebookAccessToken = process.env.FACEBOOK_ACCESS_TOKEN;
+    if (!facebookAccessToken || facebookAccessToken === 'your_facebook_page_access_token_here') {
+      // Mark as failed with helpful message for unconfigured API
+      await AdminPostsService.updatePost(postId, { 
+        status: 'failed',
+        metadata: {
+          ...post.metadata,
+          facebook_error: { message: 'Facebook API not configured' },
+          failed_at: new Date().toISOString()
+        }
+      });
+      
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: 'Facebook API não configurado. Configure FACEBOOK_ACCESS_TOKEN para publicar.'
+      }, { status: 400 });
     }
     
     // Check if post is already posted
@@ -69,11 +79,17 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(facebookPayload)
     });
     
-    const facebookResult: FacebookPostResponse | FacebookError = await facebookResponse.json();
+    const facebookResult = await facebookResponse.json();
     
     // Handle Facebook API errors
-    if (!facebookResponse.ok || 'error' in facebookResult) {
+    if (!facebookResponse.ok || facebookResult.error) {
       console.error('❌ Facebook API error:', facebookResult);
+      
+      // Extract error message safely
+      let errorMessage = 'Facebook API request failed';
+      if (facebookResult.error) {
+        errorMessage = facebookResult.error.message || facebookResult.error || 'Facebook API error';
+      }
       
       // Update post status to failed
       await AdminPostsService.updatePost(postId, { 
@@ -87,7 +103,7 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json<ApiResponse>({
         success: false,
-        error: 'error' in facebookResult ? facebookResult.message : 'Facebook API request failed'
+        error: errorMessage
       }, { status: 400 });
     }
     
@@ -132,6 +148,9 @@ export async function POST(request: NextRequest) {
 
 // Handle GET requests (for testing)
 export async function GET() {
+  const facebookAccessToken = process.env.FACEBOOK_ACCESS_TOKEN;
+  const isConfigured = facebookAccessToken && facebookAccessToken !== 'your_facebook_page_access_token_here';
+  
   return NextResponse.json({
     message: 'Baby Nurse Facebook Posting Endpoint',
     status: 'Active',
@@ -139,6 +158,7 @@ export async function GET() {
       POST: 'Post content to Facebook',
       GET: 'Health check'
     },
-    facebook_configured: !!process.env.FACEBOOK_ACCESS_TOKEN
+    facebook_configured: isConfigured,
+    configuration_status: isConfigured ? 'Configurado' : 'Configure FACEBOOK_ACCESS_TOKEN no .env.local'
   });
 }

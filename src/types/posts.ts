@@ -54,6 +54,15 @@ export interface FacebookPostResponse {
 }
 
 export interface FacebookError {
+  error: {
+    message: string;
+    type: string;
+    code: number;
+    error_subcode?: number;
+  };
+}
+
+export interface FacebookApiError {
   message: string;
   type: string;
   code: number;

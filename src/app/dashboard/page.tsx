@@ -6,7 +6,7 @@ import { supabase, PostsService } from '@/lib/supabase';
 import { Post } from '@/types/posts';
 import PostGrid from '@/components/PostGrid';
 import DashboardStats from '@/components/DashboardStats';
-import { RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 
 export default function DashboardPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [facebookConfigured, setFacebookConfigured] = useState<boolean | null>(null);
 
   // Fetch posts from database
   const fetchPosts = async () => {
@@ -30,16 +31,30 @@ export default function DashboardPage() {
     }
   };
 
+  // Check Facebook API configuration
+  const checkFacebookConfig = async () => {
+    try {
+      const response = await fetch('/api/facebook/post');
+      const result = await response.json();
+      setFacebookConfigured(result.facebook_configured);
+    } catch (error) {
+      console.error('Error checking Facebook config:', error);
+      setFacebookConfigured(false);
+    }
+  };
+
   // Manual refresh
   const handleRefresh = async () => {
     setLoading(true);
     await fetchPosts();
+    await checkFacebookConfig();
   };
 
   // Real-time subscription setup
   useEffect(() => {
     // Initial fetch
     fetchPosts();
+    checkFacebookConfig();
 
     // Set up real-time subscription
     const subscription = PostsService.subscribeToChanges((payload) => {
@@ -129,6 +144,24 @@ export default function DashboardPage() {
 
       {/* Stats Section */}
       <DashboardStats stats={stats} />
+
+      {/* Facebook Configuration Warning */}
+      {facebookConfigured === false && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mr-3" />
+            <div>
+              <h3 className="text-sm font-medium text-amber-800">
+                Facebook API não configurado
+              </h3>
+              <p className="text-sm text-amber-700 mt-1">
+                Para publicar posts no Facebook, configure <code className="bg-amber-100 px-1 rounded">FACEBOOK_ACCESS_TOKEN</code> nas variáveis de ambiente.
+                Posts criados aparecerão como "Falharam" até a configuração ser feita.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (
